@@ -46,6 +46,19 @@ body {
 #brand { font-size: 2.6rem; letter-spacing: .45em; color: var(--gold); font-weight: 300; text-indent: .45em; }
 #role-line { font-size: 1.15rem; text-align: center; line-height: 1.5; }
 
+/* seat picker */
+#seat-picker, #role-confirm { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
+#seat-prompt { font-size: 1.2rem; color: var(--gold); letter-spacing: .03em; }
+#seat-list { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 340px; }
+.seat-btn {
+  background: rgba(247,244,236,.06); color: var(--paper);
+  border: 1.5px solid var(--gold-soft); border-radius: 14px;
+  padding: 14px 18px; font-size: 1.02rem; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.seat-btn:active { background: var(--gold); color: #23180a; }
+.seat-btn .seat-played { font-size: .7rem; color: var(--gold); font-weight: 400; letter-spacing: .06em; }
+
 .big-btn {
   background: linear-gradient(180deg, var(--gold), var(--gold-soft));
   color: #23180a; border: none; border-radius: 999px;

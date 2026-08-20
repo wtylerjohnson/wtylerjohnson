@@ -54,11 +54,21 @@ def auth(request: Request) -> dict:
         payload = tokens.verify(tok)
     except tokens.TokenError as e:
         raise HTTPException(401, str(e))
-    rec = store().get_token(tok.split(".")[1][:32])
     payload["_token_id"] = tok.split(".")[1][:32]
-    payload["_token_row"] = rec
+    rec = store().any_token_row(payload["_token_id"])
     if rec and rec["revoked"]:
         raise HTTPException(403, "token revoked")
+    # persona -> deck binding: the exec's seat choice must match the deck.
+    # New tokens carry a personas map. Legacy tokens (one persona, one deck_id)
+    # still resolve to a one-seat table.
+    if payload.get("personas"):
+        payload["_deck_to_persona"] = {
+            p["deck_id"]: slug for slug, p in payload["personas"].items()
+        }
+    elif payload.get("persona") and payload.get("deck_id"):
+        payload["_deck_to_persona"] = {payload["deck_id"]: payload["persona"]}
+    else:
+        payload["_deck_to_persona"] = {}
     return payload
 
 
@@ -69,8 +79,8 @@ def healthz():
 
 @app.get("/decks/{deck_id}")
 def get_deck(deck_id: str, payload: dict = Depends(auth)):
-    if payload["deck_id"] != deck_id:
-        raise HTTPException(403, "token is for a different deck")
+    if deck_id not in payload["_deck_to_persona"]:
+        raise HTTPException(403, "token does not carry this deck")
     deck = store().get_deck(deck_id)
     if not deck:
         raise HTTPException(404, "deck not loaded")
@@ -83,26 +93,35 @@ async def post_events(request: Request, payload: dict = Depends(auth)):
     events = body.get("events", [])
     if not isinstance(events, list):
         raise HTTPException(400, "events must be a list")
+    deck_to_persona = payload["_deck_to_persona"]
     for ev in events:
         if ev.get("type") not in config.EVENT_TYPES:
             raise HTTPException(400, f"unknown event type: {ev.get('type')}")
-        if ev.get("deck_id") != payload["deck_id"]:
+        if ev.get("deck_id") not in deck_to_persona:
             raise HTTPException(403, "event deck does not match token")
-        if ev.get("exec_id") != payload["exec_id"] or ev.get("persona") != payload["persona"]:
+        if ev.get("exec_id") != payload["exec_id"]:
             raise HTTPException(403, "event attribution does not match token")
+        if ev.get("persona") != deck_to_persona[ev.get("deck_id")]:
+            raise HTTPException(403, "event persona does not match the seat that owns this deck")
         for req in ("event_id", "hand_id", "ts"):
             if not ev.get(req):
                 raise HTTPException(400, f"event missing {req}")
 
+    # Replay is per deck: a token carries several persona decks, each with its
+    # own first-play completeness.
     s = store()
-    rec = payload["_token_row"]
-    force_replay = bool(rec and rec["first_play_complete"])
-    result = s.insert_events(events, force_replay=force_replay)
-
-    deck = s.get_deck(payload["deck_id"])
-    if deck and rec and not rec["first_play_complete"]:
-        if s.distinct_first_play_swipes(payload["exec_id"], payload["deck_id"]) >= deck["n"]:
-            s.mark_first_play_complete(rec["token_id"])
+    result = {"accepted": 0, "duplicates": 0}
+    for deck_id in {ev["deck_id"] for ev in events}:
+        deck_events = [ev for ev in events if ev["deck_id"] == deck_id]
+        rec = s.get_token(payload["_token_id"], deck_id)
+        force_replay = bool(rec and rec["first_play_complete"])
+        r = s.insert_events(deck_events, force_replay=force_replay)
+        result["accepted"] += r["accepted"]
+        result["duplicates"] += r["duplicates"]
+        deck = s.get_deck(deck_id)
+        if deck and rec and not rec["first_play_complete"]:
+            if s.distinct_first_play_swipes(payload["exec_id"], deck_id) >= deck["n"]:
+                s.mark_first_play_complete(payload["_token_id"], deck_id)
     return result
 
 

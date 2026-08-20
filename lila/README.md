@@ -17,7 +17,7 @@ lila/
   api/                 FastAPI service, storage adapter, tokens, mint_link.py, swipe_report.py
   model/               labels.py, features.py, train.py, monitor.py
   fixtures/            dev fixture rows (marked; never minted to real execs)
-  tests/               29 tests incl house-rules greps
+  tests/               31 tests incl house-rules greps and seat-choice binding
   prove/               PROVE.md transcript, screenshots, simulator
 ```
 
@@ -27,14 +27,20 @@ lila/
 pip install -r requirements.txt
 python3 lila/fixtures/make_fixture_pool.py
 python3 lila/deck/pool_build.py varonis --fixture --build-date 2026-08-20
-python3 lila/deck/deck_press.py varonis --persona fed_vp --n 20 --salt 0.33 --deck-version v1
+for p in fed_vp oem_ae channel_rep capture_lead; do
+  python3 lila/deck/deck_press.py varonis --persona $p --n 20 --salt 0.33 --deck-version v1
+done
 
 export LILA_SIGNING_KEY=dev-only LILA_DB=/tmp/lila.db
 python3 -m uvicorn lila.api.main:app --port 8000 &
 (cd lila/app && python3 -m http.server 8080) &
-python3 lila/api/mint_link.py lila/decks/deck_varonis_fed_vp_v1_calibration.json \
+python3 lila/api/mint_link.py \
+  lila/decks/deck_varonis_fed_vp_v1_calibration.json \
+  lila/decks/deck_varonis_oem_ae_v1_calibration.json \
+  lila/decks/deck_varonis_channel_rep_v1_calibration.json \
+  lila/decks/deck_varonis_capture_lead_v1_calibration.json \
   --dev --app-base http://localhost:8080 --api-base http://localhost:8000
-# open the printed link on a phone or browser
+# open the printed link: choose your seat, then deal me in
 
 python3 lila/api/swipe_report.py varonis
 python3 lila/model/monitor.py varonis   # exits 3 and says why until 300 labels

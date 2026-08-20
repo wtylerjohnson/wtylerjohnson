@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+lila/api/lila.db
+lila/prove/prove.db
+lila/model/out/*.txt
+*.db

@@ -9,6 +9,7 @@ from lila.api import main as api_main
 from lila.api import tokens
 from lila.api.mint_link import mint_for_exec
 from lila.api.storage import Store
+from lila.deck import common, deck_press
 
 
 def make_client(tmp_path, monkeypatch):
@@ -17,11 +18,12 @@ def make_client(tmp_path, monkeypatch):
     return TestClient(api_main.app), store
 
 
-def swipe_event(deck, exec_id, persona, card, pos, direction="right", dist=0.7):
+def swipe_event(deck, exec_id, persona, card, pos, direction="right", dist=0.7, seat_index=1):
     return {
         "type": "swipe", "event_id": str(uuid.uuid4()), "persona": persona,
         "exec_id": exec_id, "deck_id": deck["deck_id"], "card_id": card["id"],
         "kind": card["kind"], "hand_id": f"{deck['deck_id']}:h1",
+        "seat_index": seat_index,
         "direction": direction, "swipe_distance": dist if direction == "right" else -dist,
         "swipe_ms": 200, "swipe_velocity": 3.0,
         "intensity_bin": "strong" if abs(dist) >= 0.55 else "lean",
@@ -33,8 +35,10 @@ def swipe_event(deck, exec_id, persona, card, pos, direction="right", dist=0.7):
 
 
 def test_token_roundtrip_and_tamper():
-    payload = {"deck_id": "d1", "exec_id": "x1", "persona": "fed_vp", "client": "varonis",
-               "display_order_seed": "ab", "variant": "calibration", "exp": int(time.time()) + 60}
+    payload = {"exec_id": "x1", "client": "varonis",
+               "personas": {"fed_vp": {"deck_id": "d1", "display_order_seed": "ab",
+                                       "display_name": "Federal VP", "variant": "calibration"}},
+               "exp": int(time.time()) + 60}
     tok = tokens.mint(payload)
     assert tokens.verify(tok) == payload
     with pytest.raises(tokens.TokenError):
@@ -46,26 +50,22 @@ def test_token_roundtrip_and_tamper():
 
 def test_events_flow_dedupe_and_replay(tmp_path, monkeypatch, pressed_deck):
     client, store = make_client(tmp_path, monkeypatch)
-    token, receipt = mint_for_exec(pressed_deck, "exec-a", "Test Exec", store)
+    token, receipt = mint_for_exec([pressed_deck], "exec-a", "Test Exec", store)
     hdr = {"authorization": f"Bearer {token}"}
 
-    # deck fetch gated by token
     assert client.get(f"/decks/{pressed_deck['deck_id']}").status_code == 401
     deck = client.get(f"/decks/{pressed_deck['deck_id']}", headers=hdr).json()
     assert deck["deck_id"] == pressed_deck["deck_id"]
 
-    # batch post + idempotent dedupe
     events = [swipe_event(deck, "exec-a", "fed_vp", c, i) for i, c in enumerate(deck["cards"][:5])]
     r = client.post("/events", headers=hdr, json={"events": events})
     assert r.json() == {"accepted": 5, "duplicates": 0}
     r = client.post("/events", headers=hdr, json={"events": events})
     assert r.json() == {"accepted": 0, "duplicates": 5}
 
-    # attribution mismatch rejected
     bad = swipe_event(deck, "exec-b", "fed_vp", deck["cards"][0], 0)
     assert client.post("/events", headers=hdr, json={"events": [bad]}).status_code == 403
 
-    # complete the first play; subsequent events are server-side replay
     rest = [swipe_event(deck, "exec-a", "fed_vp", c, i + 5) for i, c in enumerate(deck["cards"][5:])]
     client.post("/events", headers=hdr, json={"events": rest})
     again = [swipe_event(deck, "exec-a", "fed_vp", c, i) for i, c in enumerate(deck["cards"][:3])]
@@ -75,16 +75,34 @@ def test_events_flow_dedupe_and_replay(tmp_path, monkeypatch, pressed_deck):
     assert len(replays) == 3, "post-completion events must be stored replay=true"
 
 
+def test_persona_must_match_chosen_seat(tmp_path, monkeypatch, fixture_pool, pressed_deck):
+    from pathlib import Path
+    p2 = json.loads((Path(__file__).resolve().parents[1] / "personas" / "oem_ae.json").read_text())
+    second = deck_press.press(fixture_pool, p2, "v1", 20, 0.33, [], 0)
+    client, store = make_client(tmp_path, monkeypatch)
+    token, receipt = mint_for_exec([pressed_deck, second], "exec-a", None, store)
+    hdr = {"authorization": f"Bearer {token}"}
+    payload = tokens.verify(token)
+    assert set(payload["personas"]) == {"fed_vp", "oem_ae"}
+
+    # Swiping the fed_vp deck while claiming oem_ae is the seat is refused.
+    card = pressed_deck["cards"][0]
+    bad = swipe_event(pressed_deck, "exec-a", "oem_ae", card, 0)
+    assert client.post("/events", headers=hdr, json={"events": [bad]}).status_code == 403
+
+    good = swipe_event(pressed_deck, "exec-a", "fed_vp", card, 0, seat_index=1)
+    assert client.post("/events", headers=hdr, json={"events": [good]}).json()["accepted"] == 1
+
+
 def test_disagreements_endpoint(tmp_path, monkeypatch, pressed_deck):
     client, store = make_client(tmp_path, monkeypatch)
-    tok_a, _ = mint_for_exec(pressed_deck, "exec-a", None, store)
-    tok_b, _ = mint_for_exec(pressed_deck, "exec-b", None, store)
+    tok_a, _ = mint_for_exec([pressed_deck], "exec-a", None, store)
+    tok_b, _ = mint_for_exec([pressed_deck], "exec-b", None, store)
 
     deck = pressed_deck
     r = client.get(f"/disagreements/{deck['deck_id']}", headers={"authorization": f"Bearer {tok_a}"})
     assert r.status_code == 409
 
-    # exec-a swipes all right, exec-b splits
     ev_a = [swipe_event(deck, "exec-a", "fed_vp", c, i, "right") for i, c in enumerate(deck["cards"])]
     ev_b = [swipe_event(deck, "exec-b", "fed_vp", c, i, "left" if i % 2 else "right")
             for i, c in enumerate(deck["cards"])]
@@ -95,15 +113,17 @@ def test_disagreements_endpoint(tmp_path, monkeypatch, pressed_deck):
     assert r.status_code == 200
     body = r.json()
     assert body["count"] == len([i for i in range(deck["n"]) if i % 2])
-    assert all("our_score" not in json.dumps(body) or True for _ in [0])  # cards include hidden fields for press reuse
     assert body["line"]
 
 
 def test_mint_receipt_positions_recomputable(tmp_path, monkeypatch, pressed_deck):
-    from lila.deck import common
     _, store = make_client(tmp_path, monkeypatch)
-    token, receipt = mint_for_exec(pressed_deck, "exec-z", None, store)
-    seed = receipt["display_order_seed"]
+    token, receipt = mint_for_exec([pressed_deck], "exec-z", None, store)
+    seat = receipt["personas"]["fed_vp"]
+    seed = seat["display_order_seed"]
     assert seed == common.display_order_seed(pressed_deck["card_set_seed"], "exec-z", "fed_vp")
     recomputed = [c["id"] for c in common.display_order(seed, pressed_deck["cards"])]
-    assert recomputed == receipt["positions"]
+    assert recomputed == seat["positions"]
+    payload = tokens.verify(token)
+    assert "persona" not in payload, "persona is chosen in the app, not assigned by the token"
+    assert "fed_vp" in payload["personas"]

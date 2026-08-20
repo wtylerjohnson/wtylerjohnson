@@ -172,7 +172,7 @@ The deck JSON also carries a `table` block for the casino layer, pressed ahead l
 }
 ```
 
-Ship four: `fed_vp`, `oem_ae`, `channel_rep`, `capture_lead`. Role lines are second person, one sentence, persona-specific, category-aware, with a concrete action verb ("put a rep on", "call the contact", "register the deal", "open a capture file"). Persona switch mid-session deals the next persona's pressed deck; the app never generates one.
+Ship four: `fed_vp`, `oem_ae`, `channel_rep`, `capture_lead`. Role lines are second person, one sentence, persona-specific, category-aware, with a concrete action verb ("put a rep on", "call the contact", "register the deal", "open a capture file"). Persona switch mid-session returns the exec to the seat chooser. They pick the next chair; the app deals that persona's pressed deck. The app never generates a deck. The order they sit the chairs is recorded as `seat_index` on every event of that block.
 
 **Definition of done, Landing 1**: `pool_build.py varonis` runs locally against the full store and emits a 200-to-400-row pool with receipts; the schema test passes against the checked-in fixture row; `deck_press.py` presses calibration and standard variants byte-identically on re-run; unit tests prove the 0.20 overlap, the salt interleave, the seed recipe (same exec same order, different execs different orders, recomputable from receipts); the no-em-dash check passes.
 
@@ -290,7 +290,7 @@ The game-state fields (`streak_at_swipe`, `session_minute`, `since_bonus_event`,
 
 ### 2.9 Access
 
-Each deck link is a signed URL for one exec and one client. No accounts. Token payload `{deck_id, exec_id, persona, client, display_order_seed, exp}`, HMAC-SHA256 signed, base64url in the path: `https://<host>/d/<token>`. Persona rides in the payload, never typed. **The signing key comes from the deployment environment and is never committed.**
+Each link is a signed URL for one exec and one client, carrying every persona deck minted for them. No accounts. Token payload `{exec_id, client, personas: {slug: {deck_id, display_order_seed, display_name, variant}}, exp}`, HMAC-SHA256 signed, base64url in the fragment: `https://<host>/#t=<token>`. **The exec chooses their seat in the app before the first card.** Persona is the point of view of the priority, so it is self-selected, never assigned by the URL and never typed. The chosen persona plus `seat_index` (which chair they sat first, second, ...) rides on every event. **The signing key comes from the deployment environment and is never committed.**
 
 ### 2.10 House rules: gamification never touches the label
 

@@ -13,7 +13,6 @@ const $ = id => document.getElementById(id);
 // ---------------------------------------------------------------- boot
 const frag = new URLSearchParams(location.hash.slice(1));
 const TOKEN = frag.get('t');
-const NEXT_TOKEN = frag.get('next');
 const API = frag.get('api') || location.origin;
 
 if (!TOKEN) {
@@ -26,14 +25,33 @@ function tokenPayload(tok) {
   return JSON.parse(atob(body));
 }
 const PAYLOAD = tokenPayload(TOKEN);
-const { deck_id, exec_id, persona, display_order_seed } = PAYLOAD;
+const exec_id = PAYLOAD.exec_id;
+// One link carries every persona deck minted for this exec. The persona is
+// the point of view of the priority, so the exec CHOOSES their seat before
+// the first card; it is never assigned and never typed. Legacy single-persona
+// tokens (persona + deck_id at the top level) still work: they become a
+// one-seat table the exec still has to sit at.
+const PERSONAS = PAYLOAD.personas || (
+  PAYLOAD.persona
+    ? { [PAYLOAD.persona]: {
+        deck_id: PAYLOAD.deck_id,
+        display_order_seed: PAYLOAD.display_order_seed,
+        display_name: PAYLOAD.display_name || PAYLOAD.persona,
+        variant: PAYLOAD.variant,
+      } }
+    : {}
+);
+if (!Object.keys(PERSONAS).length) {
+  document.body.innerHTML = '<p style="padding:40px;text-align:center">This invitation has no seats. Ask for a new link.</p>';
+  throw new Error('no personas');
+}
 
 const flusher = makeFlusher(API, TOKEN, s => {
   if (s.offline) toast(`offline: ${s.queued} judgments in the vault`);
 });
 
-// mulberry32 for game-feel randomness (bonus intervals, confetti). Seeded from
-// the display order seed so a session replays identically.
+// mulberry32 for game-feel randomness (bonus intervals, confetti). Reseeded
+// from the chosen seat's display order seed so a session replays identically.
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -42,11 +60,16 @@ function mulberry32(a) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rng = mulberry32(parseInt(display_order_seed.slice(0, 8), 16));
+let rng = mulberry32(1);
 const randInt = (a, b) => a + Math.floor(rng() * (b - a + 1));
 
 // ---------------------------------------------------------------- state
 const S = {
+  persona: null,       // the chosen seat, on every event
+  deckId: null,
+  doSeed: null,
+  seatIndex: 0,        // 1st, 2nd... seat played this session; itself signal
+  playedSeats: new Set(),
   deck: null,
   cards: [],           // display-ordered
   hands: [],           // [{start, size}]
@@ -58,11 +81,11 @@ const S = {
   superLikesFired: 0,
   streak: 0,
   bestStreak: 0,
-  chips: 0,
+  chips: 0,            // cumulative across seats: the table remembers
   lastSwipeAt: 0,
-  nextBonusIn: randInt(10, 14),
+  nextBonusIn: 12,
   sinceBonus: 0,
-  swipesTotal: 0,
+  swipesTotal: 0,      // per seat
   sessionStart: Date.now(),
   cardShownAt: 0,
   replay: false,
@@ -92,8 +115,10 @@ function uuid() {
 
 function baseEvent(type) {
   return {
-    type, event_id: uuid(), persona, exec_id, deck_id,
-    hand_id: `${deck_id}:h${S.hand + 1}`,
+    type, event_id: uuid(),
+    persona: S.persona, exec_id, deck_id: S.deckId,
+    hand_id: `${S.deckId}:h${S.hand + 1}`,
+    seat_index: S.seatIndex,
     replay: S.replay, ts: new Date().toISOString(),
   };
 }
@@ -107,10 +132,10 @@ function toast(msg, ms = 1800) {
 }
 
 // ---------------------------------------------------------------- deck load
-async function loadDeck() {
-  const cacheKey = `lila_deck_${deck_id}`;
+async function loadDeck(deckId) {
+  const cacheKey = `lila_deck_${deckId}`;
   try {
-    const res = await fetch(`${API}/decks/${deck_id}`, { headers: { authorization: `Bearer ${TOKEN}` } });
+    const res = await fetch(`${API}/decks/${deckId}`, { headers: { authorization: `Bearer ${TOKEN}` } });
     if (!res.ok) throw new Error(`deck fetch ${res.status}`);
     const deck = await res.json();
     localStorage.setItem(cacheKey, JSON.stringify(deck));
@@ -119,6 +144,18 @@ async function loadDeck() {
     const cached = localStorage.getItem(cacheKey);
     if (cached) { toast('playing from the vault (offline)'); return JSON.parse(cached); }
     throw e;
+  }
+}
+
+function completedDecks() {
+  return JSON.parse(localStorage.getItem('lila_completed') || '[]');
+}
+
+function markCompleted(deckId) {
+  const done = completedDecks();
+  if (!done.includes(deckId)) {
+    done.push(deckId);
+    localStorage.setItem('lila_completed', JSON.stringify(done));
   }
 }
 
@@ -539,12 +576,8 @@ function showPayout() {
   sounds.payout(10);
   confetti(40);
 
-  const completedKey = 'lila_completed';
-  const completed = JSON.parse(localStorage.getItem(completedKey) || '[]');
-  if (!completed.includes(deck_id)) {
-    completed.push(deck_id);
-    localStorage.setItem(completedKey, JSON.stringify(completed));
-  }
+  markCompleted(S.deckId);
+  S.playedSeats.add(S.persona);
 
   const clean = cleanRun(S.deck.cards, S.decisions);
   const t = title(totalPlayed());
@@ -573,18 +606,31 @@ function showPayout() {
   drawShareTile(t, clean);
   screen.classList.remove('hidden');
 
-  if (NEXT_TOKEN) {
-    const btn = $('next-persona');
+  const remaining = Object.keys(PERSONAS).filter(s => !S.playedSeats.has(s));
+  const btn = $('next-persona');
+  if (remaining.length) {
     btn.classList.remove('hidden');
-    btn.onclick = () => {
-      location.hash = `t=${NEXT_TOKEN}&api=${encodeURIComponent(API)}`;
-      location.reload();
-    };
+    btn.textContent = remaining.length === 1 ? 'Sit a different chair' : 'Choose another seat';
+    btn.onclick = () => returnToChooser();
+  } else {
+    btn.classList.add('hidden');
   }
-  flusher.flush().then?.(() => {});
+  flusher.flush();
   $('sync-note').textContent = navigator.onLine
     ? 'every judgment is on the record'
     : 'offline: judgments are vaulted and will stream when the radio returns';
+}
+
+function returnToChooser() {
+  $('payout').classList.add('hidden');
+  $('order-screen').classList.add('hidden');
+  $('duel-screen').classList.add('hidden');
+  $('table').classList.add('hidden');
+  $('intro').classList.remove('hidden');
+  $('role-confirm').classList.add('hidden');
+  $('seat-picker').classList.remove('hidden');
+  drawSeats();
+  dealerSay('New table, same rules.');
 }
 
 // The share tile contains NO card contents: streak, chips, title, deck date,
@@ -606,28 +652,82 @@ function drawShareTile(t, clean) {
 }
 
 // ---------------------------------------------------------------- start
-async function start() {
-  S.deck = await loadDeck();
-  S.replay = JSON.parse(localStorage.getItem('lila_completed') || '[]').includes(deck_id);
-  S.cards = await displayOrder(display_order_seed, S.deck.cards);
+function drawSeats() {
+  const list = $('seat-list');
+  list.innerHTML = '';
+  const done = completedDecks();
+  for (const [slug, seat] of Object.entries(PERSONAS)) {
+    const b = document.createElement('button');
+    b.className = 'seat-btn';
+    const played = done.includes(seat.deck_id) || S.playedSeats.has(slug);
+    b.innerHTML = `<span>${seat.display_name}</span>${played ? '<span class="seat-played">played</span>' : ''}`;
+    b.onclick = () => pickSeat(slug);
+    list.appendChild(b);
+  }
+}
+
+async function pickSeat(slug) {
+  const seat = PERSONAS[slug];
+  if (!seat) return;
+  try {
+    S.persona = slug;
+    S.deckId = seat.deck_id;
+    S.doSeed = seat.display_order_seed;
+    rng = mulberry32(parseInt((S.doSeed || '1').slice(0, 8), 16));
+    S.deck = await loadDeck(S.deckId);
+  S.replay = completedDecks().includes(S.deckId);
+  S.cards = await displayOrder(S.doSeed, S.deck.cards);
   let acc = 0;
   S.hands = S.deck.hands.map(size => { const h = { start: acc, size }; acc += size; return h; });
-
+  S.idx = 0;
+  S.hand = 0;
+  S.rightsThisHand = [];
+  S.decisions = new Map();
+  S.superLikeUsedThisHand = false;
+  S.superLikesFired = 0;
+  S.streak = 0;
+  S.bestStreak = 0;
+  S.lastSwipeAt = 0;
+  S.nextBonusIn = randInt(S.deck.table.bonus_interval.min, S.deck.table.bonus_interval.max);
+  S.sinceBonus = 0;
+  S.swipesTotal = 0;
+  S.dealerIdx = 0;
   $('role-line').textContent = S.deck.role_line;
   const prior = S.deck.table.prior_exec_count;
+  let scarcity = `You are sitting as ${S.deck.display_name}.`;
   if (prior > 0) {
     const ord = n => n === 1 ? '2nd' : n === 2 ? '3rd' : `${n + 1}th`;
-    $('scarcity').textContent = `You are the ${ord(prior)} executive at ${S.deck.client} to play this shoe.`;
+    scarcity += ` You are the ${ord(prior)} executive at ${S.deck.client} to play this shoe.`;
   }
-  if (S.replay) $('scarcity').textContent += ' (replay: your first read stands; this one is logged separately)';
+  if (S.replay) scarcity += ' Replay: your first read stands; this one is logged separately.';
+  $('scarcity').textContent = scarcity;
   dealerSay(S.deck.table.dealer_lines[0]);
+  $('seat-picker').classList.add('hidden');
+  $('role-confirm').classList.remove('hidden');
+  } catch (e) {
+    toast(`That seat is dark: ${e.message}`);
+    S.persona = null;
+  }
+}
 
-  $('start').onclick = () => {
-    $('intro').classList.add('hidden');
-    $('table').classList.remove('hidden');
-    renderCard(S.cards[0]);
-    leverText();
-    updateHud();
+function dealIn() {
+  if (!S.persona) return;
+  S.seatIndex += 1;
+  $('intro').classList.add('hidden');
+  $('table').classList.remove('hidden');
+  renderCard(S.cards[0]);
+  leverText();
+  updateHud();
+}
+
+async function start() {
+  drawSeats();
+  dealerSay('Choose your seat.');
+  $('start').onclick = dealIn;
+  $('seat-back').onclick = () => {
+    S.persona = null;
+    $('role-confirm').classList.add('hidden');
+    $('seat-picker').classList.remove('hidden');
   };
   $('mute').onclick = () => {
     setMuted(!isMuted());
@@ -651,7 +751,7 @@ async function start() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
-  flusher.flush(); // recover anything vaulted from a previous session
+  flusher.flush();
 }
 
 start().catch(e => {

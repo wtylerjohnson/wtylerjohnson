@@ -2,17 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "lila/schema/events.json",
   "title": "LILA SWIPE telemetry events",
-  "description": "Four event types, one queue. Every event of every type carries persona, exec_id, deck_id, kind (card kind, or both kinds for duels), hand_id, replay, and ts. Attribution is per interaction row, never per session wrapper. event_id is the idempotency key; the server upserts on it.",
+  "description": "Four event types, one queue. Every event of every type carries persona (the seat the exec chose), exec_id, deck_id, kind (card kind, or both kinds for duels), hand_id, seat_index, replay, and ts. The persona is never assigned by the link; it is self-selected before the first card so the ranking data has a known point of view. Attribution is per interaction row, never per session wrapper. event_id is the idempotency key; the server upserts on it.",
   "$defs": {
     "base": {
       "type": "object",
-      "required": ["type", "event_id", "persona", "exec_id", "deck_id", "hand_id", "replay", "ts"],
+      "required": ["type", "event_id", "persona", "exec_id", "deck_id", "hand_id", "seat_index", "replay", "ts"],
       "properties": {
         "event_id": { "type": "string", "description": "uuid, client-generated" },
         "persona": { "type": "string" },
         "exec_id": { "type": "string", "description": "opaque, from the deck token; never a name or email" },
         "deck_id": { "type": "string" },
         "hand_id": { "type": "string", "description": "deck_id:h1 | :h2 | :h3" },
+        "seat_index": { "type": "integer", "description": "1-based order of seats this exec has sat this session. The persona is self-selected; this records which chair they chose first." },
         "replay": { "type": "boolean", "description": "second full play under the same token; never silently mixed with first-play observations" },
         "ts": { "type": "string", "description": "ISO 8601, client clock" }
       }

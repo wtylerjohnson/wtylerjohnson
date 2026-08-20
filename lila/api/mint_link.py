@@ -1,17 +1,21 @@
-"""mint_link.py <deck_file> --exec-name "..." : mint a signed URL for one exec.
+"""mint_link.py <deck_file> [<deck_file> ...] --exec-name "..."
 
-The mint is the per-executive point: it selects the calibration vs standard
-variant by the exec's play history, computes display_order_seed per the locked
-recipe, records the mint receipt (order seed AND resulting positions), loads
-the deck into the store, and prints the full URL. Tyler sends it personally;
-that printed URL is the whole delivery system for v1.
+One signed URL per executive, carrying EVERY persona deck minted for them.
+The exec chooses their seat (persona) inside the app before the first card:
+the persona is the point of view of the priority, so it must be self-selected,
+never assigned. The choice order itself is signal (seat_index rides on every
+event).
 
-Guard: decks pressed from a fixture pool are refused without --dev. Fixture
-rows must never reach a real executive.
+The mint remains the per-executive point: it selects the calibration vs
+standard variant by play history, computes display_order_seed per persona per
+the locked recipe, records the mint receipt (order seed AND positions per
+persona), loads the decks into the store, and prints the full URL. Tyler sends
+it personally.
+
+Guard: decks pressed from a fixture pool are refused without --dev.
 
 Link format: {app_base}/#t={token}. The token rides in the URL fragment so it
-never appears in server logs; the app reads it, verifies nothing (the API
-does), and fetches GET /decks/{deck_id}.
+never appears in server logs.
 """
 
 from __future__ import annotations
@@ -33,56 +37,74 @@ from lila.api.storage import Store
 from lila.deck import common
 
 
-def mint_for_exec(deck: dict, exec_id: str, exec_name: str | None, store: Store,
+def mint_for_exec(decks: list[dict], exec_id: str, exec_name: str | None, store: Store,
                   exp_days: int = config.TOKEN_TTL_DAYS) -> tuple[str, dict]:
-    do_seed = common.display_order_seed(deck["card_set_seed"], exec_id, deck["persona"])
-    ordered = common.display_order(do_seed, deck["cards"])
-    positions = [c["id"] for c in ordered]
+    clients = {d["client"] for d in decks}
+    if len(clients) != 1:
+        raise ValueError("one link is one exec and one client; mixed clients refused")
+    personas_payload: dict = {}
+    positions_by_persona: dict = {}
+    for deck in decks:
+        slug = deck["persona"]
+        if slug in personas_payload:
+            raise ValueError(f"two decks for persona {slug}; one deck per persona per link")
+        do_seed = common.display_order_seed(deck["card_set_seed"], exec_id, slug)
+        ordered = common.display_order(do_seed, deck["cards"])
+        personas_payload[slug] = {
+            "deck_id": deck["deck_id"],
+            "display_order_seed": do_seed,
+            "display_name": deck["display_name"],
+            "variant": deck["variant"],
+        }
+        positions_by_persona[slug] = [c["id"] for c in ordered]
 
     payload = {
-        "deck_id": deck["deck_id"],
+        "client": decks[0]["client"],
         "exec_id": exec_id,
-        "persona": deck["persona"],
-        "client": deck["client"],
-        "display_order_seed": do_seed,
-        "variant": deck["variant"],
+        "personas": personas_payload,
         "exp": int(time.time()) + exp_days * 86400,
     }
     token = tokens.mint(payload)
     token_id = token.split(".")[1][:32]
 
-    store.put_deck(deck)
-    store.put_token({
-        "token_id": token_id,
-        "exec_id": exec_id,
-        "exec_name": exec_name,
-        "deck_id": deck["deck_id"],
-        "client": deck["client"],
-        "persona": deck["persona"],
-        "variant": deck["variant"],
-        "display_order_seed": do_seed,
-        "positions": positions,
-    })
+    for deck in decks:
+        slug = deck["persona"]
+        store.put_deck(deck)
+        store.put_token({
+            "token_id": token_id,
+            "exec_id": exec_id,
+            "exec_name": exec_name,
+            "deck_id": deck["deck_id"],
+            "client": deck["client"],
+            "persona": slug,
+            "variant": deck["variant"],
+            "display_order_seed": personas_payload[slug]["display_order_seed"],
+            "positions": positions_by_persona[slug],
+        })
 
     receipt = {
         "minted": "token",
-        "deck_id": deck["deck_id"],
-        "deck_version": deck["deck_version"],
-        "variant": deck["variant"],
-        "client": deck["client"],
-        "persona": deck["persona"],
+        "client": decks[0]["client"],
         "exec_id": exec_id,
-        "display_order_seed": do_seed,
-        "positions": positions,
-        "hands": deck["hands"],
-        "fixture": deck.get("pool_fixture", False),
+        "personas": {
+            slug: {
+                "deck_id": personas_payload[slug]["deck_id"],
+                "deck_version": next(d["deck_version"] for d in decks if d["persona"] == slug),
+                "variant": personas_payload[slug]["variant"],
+                "display_order_seed": personas_payload[slug]["display_order_seed"],
+                "positions": positions_by_persona[slug],
+                "hands": next(d["hands"] for d in decks if d["persona"] == slug),
+            }
+            for slug in personas_payload
+        },
+        "fixture": any(d.get("pool_fixture") for d in decks),
     }
     return token, receipt
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("deck_file")
+    ap.add_argument("deck_files", nargs="+", help="one deck per persona; the exec chooses their seat in the app")
     ap.add_argument("--exec-name", default=None, help="display name the exec chose; the only PII, lives in tokens only")
     ap.add_argument("--exec-id", default=None, help="opaque id; generated if omitted; NEVER a name or email")
     ap.add_argument("--db", default=os.environ.get("LILA_DB", str(ROOT / "lila" / "api" / "lila.db")))
@@ -93,28 +115,31 @@ def main() -> None:
     ap.add_argument("--out-dir", default=str(ROOT / "lila" / "decks"))
     args = ap.parse_args()
 
-    deck = json.loads(Path(args.deck_file).read_text())
-    if deck.get("pool_fixture") and not args.dev:
-        raise SystemExit("REFUSED: this deck was pressed from a FIXTURE pool. "
+    decks = [json.loads(Path(f).read_text()) for f in args.deck_files]
+    if any(d.get("pool_fixture") for d in decks) and not args.dev:
+        raise SystemExit("REFUSED: at least one deck was pressed from a FIXTURE pool. "
                          "Fixture rows never reach a real executive. Use --dev for development links.")
 
     exec_id = args.exec_id or ("x" + secrets.token_hex(8))
     store = Store(args.db)
 
-    history = store.exec_history_count(exec_id, deck["client"])
+    history = store.exec_history_count(exec_id, decks[0]["client"])
     expected = "calibration" if history == 0 else "standard"
-    if deck["variant"] != expected:
-        print(f"note: exec history suggests the {expected} variant "
-              f"(prior decks for this client: {history}); minting {deck['variant']} as given.")
+    for d in decks:
+        if d["variant"] != expected:
+            print(f"note: exec history suggests the {expected} variant for {d['persona']} "
+                  f"(prior decks for this client: {history}); minting {d['variant']} as given.")
 
-    token, receipt = mint_for_exec(deck, exec_id, args.exec_name, store)
-    out = Path(args.out_dir) / f"mint_{deck['deck_id']}_{exec_id}.receipt.json"
+    token, receipt = mint_for_exec(decks, exec_id, args.exec_name, store)
+    deck_ids = "_".join(sorted(p["deck_id"] for p in receipt["personas"].values()))[:40]
+    out = Path(args.out_dir) / f"mint_{deck_ids}_{exec_id}.receipt.json"
     out.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 
     api_suffix = f"&api={args.api_base}" if args.api_base else ""
-    print(f"exec_id: {exec_id}")
-    print(f"receipt: {out}")
-    print(f"link:    {args.app_base}/#t={token}{api_suffix}")
+    print(f"exec_id:  {exec_id}")
+    print(f"personas: {', '.join(sorted(receipt['personas']))} (exec chooses their seat in the app)")
+    print(f"receipt:  {out}")
+    print(f"link:     {args.app_base}/#t={token}{api_suffix}")
 
 
 if __name__ == "__main__":

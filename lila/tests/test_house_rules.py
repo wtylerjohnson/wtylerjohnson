@@ -54,8 +54,19 @@ def test_event_fields_complete():
     for field in ("swipe_distance", "swipe_ms", "swipe_velocity", "intensity_bin",
                   "position_in_hand", "position_in_deck", "streak_at_swipe",
                   "session_minute", "since_bonus_event", "muted", "overlap", "retest",
-                  "sampling_reason", "ranked_card_ids", "mode: 'immediate'", "mode: 'retroactive'"):
+                  "sampling_reason", "ranked_card_ids", "mode: 'immediate'", "mode: 'retroactive'",
+                  "seat_index"):
         assert field in src, f"telemetry field missing from app.js: {field}"
+
+
+def test_exec_must_choose_a_seat():
+    src = (APP / "app.js").read_text()
+    html = (APP / "index.html").read_text()
+    assert "Choose your seat at the table." in html
+    assert "function pickSeat" in src
+    assert "S.persona = slug" in src
+    assert "PERSONAS" in src
+    assert "function dealIn" in src
 
 
 def test_share_tile_carries_no_card_contents():

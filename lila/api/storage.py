@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS decks (
   loaded_at REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS tokens (
-  token_id TEXT PRIMARY KEY,
+  token_id TEXT NOT NULL,
   exec_id TEXT NOT NULL,
   exec_name TEXT,
   deck_id TEXT NOT NULL,
@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS tokens (
   positions_json TEXT NOT NULL,
   created_at REAL NOT NULL,
   first_play_complete INTEGER NOT NULL DEFAULT 0,
-  revoked INTEGER NOT NULL DEFAULT 0
+  revoked INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (token_id, deck_id)
 );
 CREATE TABLE IF NOT EXISTS events (
   event_id TEXT PRIMARY KEY,
@@ -84,17 +85,26 @@ class Store:
         )
         self.conn.commit()
 
-    def get_token(self, token_id: str) -> sqlite3.Row | None:
+    def get_token(self, token_id: str, deck_id: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM tokens WHERE token_id=? AND deck_id=?", (token_id, deck_id)
+        ).fetchone()
+
+    def any_token_row(self, token_id: str) -> sqlite3.Row | None:
         return self.conn.execute("SELECT * FROM tokens WHERE token_id=?", (token_id,)).fetchone()
 
     def exec_history_count(self, exec_id: str, client: str) -> int:
         row = self.conn.execute(
-            "SELECT COUNT(*) c FROM tokens WHERE exec_id=? AND client=?", (exec_id, client)
+            "SELECT COUNT(DISTINCT token_id) c FROM tokens WHERE exec_id=? AND client=?",
+            (exec_id, client),
         ).fetchone()
         return row["c"]
 
-    def mark_first_play_complete(self, token_id: str) -> None:
-        self.conn.execute("UPDATE tokens SET first_play_complete=1 WHERE token_id=?", (token_id,))
+    def mark_first_play_complete(self, token_id: str, deck_id: str) -> None:
+        self.conn.execute(
+            "UPDATE tokens SET first_play_complete=1 WHERE token_id=? AND deck_id=?",
+            (token_id, deck_id),
+        )
         self.conn.commit()
 
     # events ----------------------------------------------------------------

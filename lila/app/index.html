@@ -23,9 +23,17 @@
   <main id="stage">
     <section id="intro" class="screen">
       <div id="brand">LILA</div>
-      <p id="role-line"></p>
-      <p id="scarcity" class="subtle"></p>
-      <button id="start" class="big-btn">Deal me in</button>
+      <div id="seat-picker">
+        <p id="seat-prompt">Choose your seat at the table.</p>
+        <p class="subtle tiny">The game reads the market from where you sit. Pick the chair that is actually yours.</p>
+        <div id="seat-list"></div>
+      </div>
+      <div id="role-confirm" class="hidden">
+        <p id="role-line"></p>
+        <p id="scarcity" class="subtle"></p>
+        <button id="start" class="big-btn">Deal me in</button>
+        <button id="seat-back" class="text-btn">different seat</button>
+      </div>
       <p class="subtle tiny">Swipe right if it is relevant. Left if it is not. That is the whole game.</p>
     </section>
 

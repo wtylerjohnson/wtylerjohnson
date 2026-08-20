@@ -26,20 +26,28 @@ from lila.deck import common
 
 
 def play(api: str, token: str, hands_to_play: int | None, rng: random.Random,
-         duplicate_first_batch: bool = False) -> dict:
+         duplicate_first_batch: bool = False, persona_slug: str | None = None,
+         seat_index: int = 1) -> dict:
     payload = json.loads(__import__("base64").urlsafe_b64decode(
         token.split(".")[0] + "==").decode())
-    deck_id, exec_id, persona = payload["deck_id"], payload["exec_id"], payload["persona"]
+    exec_id = payload["exec_id"]
+    if payload.get("personas"):
+        slug = persona_slug or sorted(payload["personas"])[0]
+        seat = payload["personas"][slug]
+        deck_id, persona, do_seed = seat["deck_id"], slug, seat["display_order_seed"]
+    else:
+        deck_id, persona = payload["deck_id"], payload["persona"]
+        do_seed = payload["display_order_seed"]
     headers = {"authorization": f"Bearer {token}"}
 
     deck = httpx.get(f"{api}/decks/{deck_id}", headers=headers).json()
-    cards = common.display_order(payload["display_order_seed"], deck["cards"])
+    cards = common.display_order(do_seed, deck["cards"])
     hands = deck["hands"][:hands_to_play] if hands_to_play else deck["hands"]
 
     def base(t, hand_i):
         return {"type": t, "event_id": str(uuid.uuid4()), "persona": persona,
                 "exec_id": exec_id, "deck_id": deck_id, "hand_id": f"{deck_id}:h{hand_i+1}",
-                "replay": False, "ts": "2026-08-20T16:00:00Z"}
+                "seat_index": seat_index, "replay": False, "ts": "2026-08-20T16:00:00Z"}
 
     sent = {"swipe": 0, "ordering": 0, "super_like": 0, "duel": 0}
     pos = 0
@@ -113,10 +121,11 @@ def main() -> None:
     ap.add_argument("--hands", type=int, default=None)
     ap.add_argument("--seed", type=int, default=11)
     ap.add_argument("--dupe-first-batch", action="store_true")
+    ap.add_argument("--persona", default=None, help="which seat to sit; defaults to first persona on the token")
     args = ap.parse_args()
 
     rng = random.Random(args.seed)
-    results = [play(args.api, t, args.hands, rng, args.dupe_first_batch) for t in args.token]
+    results = [play(args.api, t, args.hands, rng, args.dupe_first_batch, args.persona) for t in args.token]
     print(json.dumps(results, indent=2))
 
 
