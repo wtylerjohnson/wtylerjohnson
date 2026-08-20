@@ -67,7 +67,7 @@ Four ship in v1: `fed_vp`, `oem_ae`, `channel_rep`, `capture_lead`. All play aga
 1. **Preload everything.** No dynamic generation at play time. Decks are pressed from a candidate pool ahead of the session. Test: the PWA makes zero network calls during play except telemetry flush. The press makes zero live calls (embeddings come from a locally cached model; the receipt records the model id and file hash).
 2. **Our score is the hypothesis, the swipes are the observation.** `our_score` and `our_components` ride in the card JSON and are NEVER rendered. Test: the only permitted references in app source are the telemetry passthrough and a unit test asserting they never reach the DOM.
 3. **Every swipe streams with persona attribution.** Offline play queues locally and flushes. Test: airplane-mode drill in the Prove section.
-4. **Fun is a requirement.** Sound, motion, streaks, a jackpot mechanic. If it feels like a form it failed.
+4. **Fun is a requirement.** Sound, motion, streaks, chips, a jackpot mechanic, novelty every block. If it feels like a form it failed. Bounded by the house rules in 2.10: the chrome can gamble, the card cannot, and no mechanic may reward a swipe direction.
 5. **Zero em dashes anywhere.** `scripts/check_no_em_dash.sh` greps the repo for U+2014 and fails nonzero on any hit; wire it into the repo's existing check gate. This file passes it.
 6. **Deterministic press.** Same pool, same seed, same flags, byte-identical deck JSON. Test: press twice, `sha256sum` must match.
 7. **Receipts on every card**: `record_id`, `source_url`, `retrieved_at`. Also a receipt file per press and per report, in the repo's existing receipt format.
@@ -132,6 +132,8 @@ Samples a deck from the pool:
 
 Emits `deck_<client>_<persona>_<date>.json` (deck id is sha256 of contents, first 12 hex) and a receipt: counts by kind, salt count, overlap count, seed, pool file hash.
 
+The deck JSON also carries a `table` block for the casino layer, pressed ahead like everything else: the dealer line set for this deck, the streak flair schedule, the between-hand bonus interval parameters (drawn per-session from a seed in the block), and the prior-exec count for the scarcity line. No play-time generation.
+
 ### 1.4 Personas: preloaded modules
 
 `lila/personas/<slug>.json`:
@@ -174,18 +176,26 @@ After each swipe, a one-second chip row slides in where the card was. Tap one or
 
 ### 2.5 Super like
 
-One available per ten cards played, non-accumulating. Casino-styled: pull-down on the card arms it (slot lever), release fires a jackpot sound and a canvas confetti burst (no dependency). Shown once on first use: "I would call this contact tomorrow." Stored as its own label on top of a right swipe.
+One available per ten cards played, non-accumulating. Casino-styled: pull-down on the card arms it (slot lever with resistance and a ratchet sound), release fires a jackpot roll and a canvas confetti burst (no dependency). Shown once on first use: "I would call this contact tomorrow." Stored as its own label on top of a right swipe. A small lever icon shows charge state; when a super like becomes available, the lever glints once. The glint fires on availability (a function of cards played), never on a particular card, per the house rules in 2.10.
 
 ### 2.6 End of persona block
 
-1. **Ordering screen**: the persona's right swipes, max 8 (most recent 8 if more), drag-to-order, prompt "Order these by where you would put a rep first." This is the pairwise data. Rival-award cards may appear here with their rival labeling intact. Submit posts an ordering row.
-2. **Summary card**: cards played, longest streak, super likes fired, "no dead cards taken" if every near miss was caught (never say salt), and a share tile. **The share tile contains no card contents**: streak, count, deck date, and branding only, because executives screenshot and forward these.
+1. **Ordering screen**: the persona's right swipes, max 8 (most recent 8 if more), drag-to-order, prompt "Order these by where you would put a rep first." This is the pairwise data. Rival-award cards may appear here with their rival labeling intact. Frame it as stacking chips, not filling a form: each card is a chip tile, dragging one up the stack plays a chip-click, dropping it settles the stack with a clack. Submit posts an ordering row.
+2. **The payout screen** (replaces a plain summary): a settle-up animation, counters spin up like a slot payout. Cards played, longest streak, super likes fired, "no dead cards taken" if every near miss was caught (never say salt), chips banked this block, title progress (2.10), and the share tile. **The share tile contains no card contents**: streak, chip count, title, deck date, and branding only, because executives screenshot and forward these.
 
-### 2.7 Fun layer
+### 2.7 The casino layer
 
-- Sound on swipe, synthesized with WebAudio oscillators (no binary audio assets): rising two-note blip right, low thunk left, three-note jackpot roll for super like. **Sound is on after the first user interaction** (which is also what browser autoplay policy requires), with an obvious mute control, preference persisted.
-- Haptics via Vibration API where supported (Android). iOS Safari has no web haptics: pair the sound with a 120 ms visual pulse on the card frame.
-- Streak counter with escalating flair at 5, 10, 20; a light progress ring; a "deal me another persona" button on the summary.
+Sound, motion, and feel. All sounds synthesized with WebAudio oscillators (no binary audio assets). **Sound is on after the first user interaction** (which is also what browser autoplay policy requires), with an obvious mute control, preference persisted.
+
+- **The deal**: cards enter from a shoe at the top of the screen with a riffle sound and a slight arc, not a fade-in. The deck is "the shoe"; the progress ring around it depletes as cards are dealt.
+- **Swipe feel**: the card follows the finger with rotation and momentum physics; release past threshold flings it off-screen with a whoosh (pitch differs left vs right), release short of threshold snaps it back with a rubber-band wobble. Right is a rising two-note blip, left a low thunk, super like a three-note jackpot roll. Chip taps click like a chip on felt.
+- **Haptics**: Vibration API where supported (Android). iOS Safari has no web haptics: pair every sound with a 120 ms visual pulse on the card frame.
+- **Heat**: the streak counter is a flame that grows through 5, 10, 20 with escalating color and a low ember hum at 20. Streak means continuous play (no idle gap over 8 seconds), never a run of any particular direction. Ignoring reason chips does not break streak; walking away does. A broken streak cools with a hiss, no punishment beyond the reset.
+- **Chips**: a session currency. Every swipe banks chips; decisive play (any direction) banks slightly more via the streak multiplier (x1 to x2, capped). Chips buy nothing in v1; they are the score that makes the payout screen and share tile worth screenshotting. The multiplier reads at the top like a table minimum placard.
+- **Between-hand moments**: every 10 to 14 swipes (variable interval drawn from the session RNG, not tied to any card), a half-second slot-reel tick rolls across the top bar and banks a small chip bonus. This is the variable-reward hook, and it is deliberately attached to moments between cards, never to a card.
+- **Table talk**: a one-line dealer voice on the top bar, rotating, dry ("Fresh shoe.", "The table is hot.", "Last hand before the break."). Text only, prewritten in the deck press, no generation at play time.
+- **Scarcity and rivalry**: the deck header may show "You are the 2nd executive at Varonis to play this shoe" when true (count rides in the deck JSON at press). This is the head-to-head tease and costs nothing to show.
+- **A "deal me another persona" button** on the payout screen, styled as moving to a new table.
 
 ### 2.8 Telemetry
 
@@ -206,9 +216,15 @@ Per swipe, one event. **Persona and exec attribution ride on every event row**, 
   "position_in_deck": 0,
   "overlap": false,
   "device_class": "phone | tablet | desktop",
-  "ts": "ISO 8601, client clock"
+  "ts": "ISO 8601, client clock",
+  "streak_at_swipe": 0,
+  "session_minute": 0.0,
+  "since_bonus_event": 0,
+  "muted": false
 }
 ```
+
+The last four are game-state fields: they exist so the monitor can test whether the casino layer bends the labels (2.10, rule 4). `since_bonus_event` counts swipes since the last between-hand bonus; `session_minute` is minutes into the session at swipe time.
 
 Events append to the IndexedDB queue on swipe. The flusher batch-posts on: queue length 10, `online` event, `visibilitychange` to hidden, block end. Server dedupes on `event_id`; retries are safe; nothing blocks the next card on network.
 
@@ -216,7 +232,18 @@ Events append to the IndexedDB queue on swipe. The flusher batch-posts on: queue
 
 Each deck link is a signed URL for one exec and one client. No accounts. Token payload `{deck_id, exec_id, persona, client, exp}`, HMAC-SHA256 signed, base64url in the path: `https://<host>/d/<token>`. Persona rides in the payload, never typed. **The signing key comes from the deployment environment and is never committed.**
 
-**Definition of done, Landing 2**: plays instantly from a signed Safari URL on a phone; offline after first load; swipes, chips, super like, ordering, summary, sounds, pulses all work; no field of ours ever renders (asserted by test); telemetry queues offline and flushes on reconnect; the share tile contains no card contents.
+### 2.10 House rules: gamification never touches the label
+
+The mechanic is the acquisition; the label is the product. One governing rule: **the chrome can gamble, the card cannot.** Enforced constraints, each with a test where feasible:
+
+1. No mechanic may reward or celebrate a swipe **direction**. Chips, streaks, and multipliers pay identically for left and right. A right-swipe confetti would teach execs to swipe right; there is none. Only the super like celebrates, because the super like IS the label.
+2. No per-card correctness feedback, ever. Salt catches are revealed only in aggregate on the payout screen ("no dead cards taken"), never on the card that was salt.
+3. No card is visually special before judgment. Bonus moments, lever glints, and dealer lines fire on counts and timers, never on the card currently shown. Retest and salt cards are pixel-identical to their kind. Test: the render path takes only card fields that appear on the face; `salt`, `overlap`, `retest`, `our_score`, and `our_components` are unreachable from it.
+4. Every fun event that fires near a swipe is captured in the game-state telemetry fields (2.8) so the monitor can test whether the casino is bending the labels: right-swipe rate and intensity as a function of streak height, bonus proximity, and session minute. Drift beyond a set band flags the mechanic, not the exec.
+5. Novelty budget per block: at least one element the exec has not seen before (a new dealer line set, a new streak flair tier, a new title, the head-to-head tease when it unlocks). Cheap to rotate because dealer lines and the flair schedule ride in the deck JSON, pressed ahead of time.
+6. Titles: a session-spanning progression stored client-side against `exec_id` (Floor Rookie, Regular, High Roller, Whale, Pit Boss), advanced by total cards played across sessions. Titles reward volume, which is exactly what the instrument needs, and never accuracy or direction.
+
+**Definition of done, Landing 2**: plays instantly from a signed Safari URL on a phone; offline after first load; the deal, swipe physics, chips, streak flame, between-hand bonus, super like lever, ordering-as-chip-stack, payout screen, sounds, and pulses all work; no field of ours ever renders (asserted by test); telemetry queues offline and flushes on reconnect with game-state fields populated; the share tile contains no card contents.
 
 ---
 
@@ -279,6 +306,7 @@ Run after every session and nightly. Checks:
 4. Feature-importance drift between consecutive trainings.
 5. Calibration on a held-out fold.
 6. Whether the candidate model would move any of the top five readout rows, listed by name if so.
+7. Casino-bias check, using the game-state telemetry fields: right-swipe rate and mean intensity as a function of streak height, between-hand bonus proximity, and session minute. If the mechanics measurably push direction or intensity, the receipt names the mechanic and the session, and those labels are down-weighted, not the exec blamed.
 
 Writes a one-page receipt. Blocks promotion if any check fails, and says which. Flags cards where model and crowd disagree hard; those return in the next press as `retest: true` cards, up to 10 percent of a deck.
 
@@ -302,7 +330,8 @@ Run in order, capture output and screenshots into `lila/prove/`:
 2. Run the app on a phone from the signed URL: swipe 20, switch persona, swipe 20, order the rights. Confirm the endpoint received every event with the right persona on the row. Then: airplane mode on, swipe 5, airplane mode off, confirm the 5 arrive exactly once.
 3. Run `swipe_report.py varonis` against those 40 events and print the comparison table.
 4. Train the ranker on the tiny set only to prove the pipeline. The monitor must refuse promotion for insufficient labels and say so in its receipt.
-5. Screenshots: card face, reason chips, super like jackpot, ordering screen, summary card.
+5. Screenshots: card face, reason chips, super like jackpot, streak flame with chip multiplier, between-hand bonus tick, ordering screen as chip stack, payout screen, share tile.
+6. House-rules spot check: play 10 cards and confirm chips and streak pay identically for left and right swipes, and that no salt card looked different from its kind before judgment.
 
 ## Sequence
 
