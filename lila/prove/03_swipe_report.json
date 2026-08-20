@@ -1,0 +1,141 @@
+{
+  "client": "varonis",
+  "decks": {
+    "cec987b7d29a": {
+      "by_kind": {
+        "closed_rfi": {
+          "direction_agreement": 1.0,
+          "labels": 2
+        },
+        "forecast": {
+          "direction_agreement": 1.0,
+          "labels": 2
+        },
+        "near_miss": {
+          "direction_agreement": 0.5714,
+          "labels": 14
+        },
+        "notice": {
+          "direction_agreement": 1.0,
+          "labels": 16
+        },
+        "rival_award": {
+          "direction_agreement": 0.5,
+          "labels": 6
+        }
+      },
+      "fed_vp": {
+        "cards_labeled": 20,
+        "kendall_tau": 0.6947,
+        "ndcg_at_10": 0.9576,
+        "pairwise_accuracy": 0.8846,
+        "top10_overlap": 8
+      },
+      "persona_disagreements": [],
+      "pooled": {
+        "cards_labeled": 20,
+        "kendall_tau": 0.6947,
+        "ndcg_at_10": 0.9576,
+        "pairwise_accuracy": 0.8846,
+        "top10_overlap": 8
+      },
+      "salt_catch_by_persona": {
+        "fed_vp": 1.0
+      }
+    },
+    "e359585bf0fc": {
+      "by_kind": {
+        "closed_rfi": {
+          "direction_agreement": 1.0,
+          "labels": 1
+        },
+        "forecast": {
+          "direction_agreement": 0.0,
+          "labels": 1
+        },
+        "near_miss": {
+          "direction_agreement": 0.7143,
+          "labels": 7
+        },
+        "notice": {
+          "direction_agreement": 0.875,
+          "labels": 8
+        },
+        "rival_award": {
+          "direction_agreement": 0.6667,
+          "labels": 3
+        }
+      },
+      "oem_ae": {
+        "cards_labeled": 20,
+        "kendall_tau": 0.5263,
+        "ndcg_at_10": 0.8661,
+        "pairwise_accuracy": 0.7692,
+        "top10_overlap": 8
+      },
+      "persona_disagreements": [],
+      "pooled": {
+        "cards_labeled": 20,
+        "kendall_tau": 0.5263,
+        "ndcg_at_10": 0.8661,
+        "pairwise_accuracy": 0.7692,
+        "top10_overlap": 8
+      },
+      "salt_catch_by_persona": {
+        "oem_ae": 1.0
+      }
+    }
+  },
+  "event_counts": {
+    "duels": 12,
+    "orderings": 9,
+    "quarantined_sessions": 0,
+    "replays_excluded": 0,
+    "super_likes": 9,
+    "swipes": 60
+  },
+  "receipt": {
+    "deck_hashes": {
+      "cec987b7d29a": "f5b649a88b6f",
+      "e359585bf0fc": "de340b8e3f32"
+    },
+    "decks_covered": [
+      "cec987b7d29a",
+      "e359585bf0fc"
+    ],
+    "execs": [
+      "exec-alpha",
+      "exec-bravo"
+    ],
+    "labels_used": 60
+  },
+  "sessions": {
+    "exec-alpha:cec987b7d29a": {
+      "catch_rate": 1.0,
+      "caught": 7,
+      "flags": [],
+      "n": 7,
+      "quarantine": false,
+      "rapid_fire_runs": [],
+      "reason": "below minimum 8 salt judgments; gate not applied"
+    },
+    "exec-alpha:e359585bf0fc": {
+      "catch_rate": 1.0,
+      "caught": 7,
+      "flags": [],
+      "n": 7,
+      "quarantine": false,
+      "rapid_fire_runs": [],
+      "reason": "below minimum 8 salt judgments; gate not applied"
+    },
+    "exec-bravo:cec987b7d29a": {
+      "catch_rate": 1.0,
+      "caught": 7,
+      "flags": [],
+      "n": 7,
+      "quarantine": false,
+      "rapid_fire_runs": [],
+      "reason": "below minimum 8 salt judgments; gate not applied"
+    }
+  }
+}

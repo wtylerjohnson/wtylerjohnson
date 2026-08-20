@@ -1,0 +1,123 @@
+{
+  "blocked_by": [
+    "label_volume",
+    "calibration"
+  ],
+  "checks": [
+    {
+      "check": "label_volume",
+      "client_gate": 300,
+      "detail": "insufficient labels: 39 pooled, gate is 300. The ranker is not allowed to change the client artifact.",
+      "pass": false,
+      "per_persona": {
+        "fed_vp": 26,
+        "oem_ae": 13
+      },
+      "persona_gate": 300,
+      "personas_past_gate": [],
+      "pooled_labels": 39
+    },
+    {
+      "check": "session_quality",
+      "detail": "0 session(s) quarantined (events retained, excluded from training pending review)",
+      "pass": true,
+      "quarantined": [],
+      "rapid_fire_flagged": {},
+      "sessions": 3
+    },
+    {
+      "agreement_rate": 0.8889,
+      "check": "inter_persona_agreement",
+      "comparisons": 9,
+      "detail": "informational; trended across sessions in the history file",
+      "pass": true
+    },
+    {
+      "check": "salt_not_feature",
+      "detail": "salt, overlap, retest are held-out checks, never features",
+      "pass": true
+    },
+    {
+      "check": "importance_drift",
+      "detail": "total variation distance between consecutive trainings; threshold 0.5",
+      "l1_drift": null,
+      "pass": true
+    },
+    {
+      "check": "calibration",
+      "detail": "held-out sessions: 1",
+      "held_out_direction_accuracy": 0.5385,
+      "pass": false
+    },
+    {
+      "check": "top5_movement",
+      "detail": "informational: rows the candidate model would move into the top five readout",
+      "hand_top5": [
+        "fxnoti00100000000000000000000",
+        "fxnoti00200000000000000000000",
+        "fxnoti00600000000000000000000",
+        "fxnoti00500000000000000000000",
+        "fxnoti00400000000000000000000"
+      ],
+      "model_top5": [
+        "fxnoti00100000000000000000000",
+        "fxnoti00200000000000000000000",
+        "fxriva00100000000000000000000",
+        "fxtier00200000000000000000000",
+        "fxnoti00300000000000000000000"
+      ],
+      "pass": true,
+      "would_move": [
+        "fxriva00100000000000000000000",
+        "fxtier00200000000000000000000",
+        "fxnoti00300000000000000000000"
+      ]
+    },
+    {
+      "check": "casino_bias",
+      "detail": "right-swipe rate drift beyond 0.25 between game-state bands flags the mechanic",
+      "findings": [],
+      "pass": true
+    }
+  ],
+  "client": "varonis",
+  "lambdamart": {
+    "features": [
+      "openness",
+      "clock",
+      "fit_tier",
+      "account",
+      "access",
+      "dollars",
+      "persona_idx",
+      "kind_idx",
+      "tier",
+      "days_remaining",
+      "agency_idx",
+      "vehicle_present",
+      "incumbent_flag",
+      "rival_flag",
+      "dollars_bucket",
+      "sim_taxonomy",
+      "sim_exec_rights",
+      "sim_client_rights"
+    ],
+    "groups": 3,
+    "pair_mechanism": "pair_adjustment:v1",
+    "persona": null,
+    "rows": 39,
+    "scope": "monitor",
+    "trained": true
+  },
+  "promotion_allowed": false,
+  "retest_cards": [
+    "fxfore00000000000000000000000",
+    "fxnoti00800000000000000000000",
+    "fxriva00000000000000000000000",
+    "fxriva00400000000000000000000",
+    "fxtier00100000000000000000000",
+    "fxnoti00400000000000000000000"
+  ],
+  "retest_file": "/workspace/lila/model/out/retest_varonis.json",
+  "verdict": "PROMOTION BLOCKED: label_volume: insufficient labels: 39 pooled, gate is 300. The ranker is not allowed to change the client artifact.; calibration: held-out sessions: 1"
+}

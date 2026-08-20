@@ -87,6 +87,8 @@ def main() -> None:
     ap.add_argument("--exec-id", default=None, help="opaque id; generated if omitted; NEVER a name or email")
     ap.add_argument("--db", default=os.environ.get("LILA_DB", str(ROOT / "lila" / "api" / "lila.db")))
     ap.add_argument("--app-base", default=os.environ.get("LILA_APP_BASE", "http://localhost:8080"))
+    ap.add_argument("--api-base", default=os.environ.get("LILA_API_BASE"),
+                    help="append &api= to the link when the API is not the app origin")
     ap.add_argument("--dev", action="store_true", help="allow fixture decks (development only)")
     ap.add_argument("--out-dir", default=str(ROOT / "lila" / "decks"))
     args = ap.parse_args()
@@ -109,9 +111,10 @@ def main() -> None:
     out = Path(args.out_dir) / f"mint_{deck['deck_id']}_{exec_id}.receipt.json"
     out.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 
+    api_suffix = f"&api={args.api_base}" if args.api_base else ""
     print(f"exec_id: {exec_id}")
     print(f"receipt: {out}")
-    print(f"link:    {args.app_base}/#t={token}")
+    print(f"link:    {args.app_base}/#t={token}{api_suffix}")
 
 
 if __name__ == "__main__":
