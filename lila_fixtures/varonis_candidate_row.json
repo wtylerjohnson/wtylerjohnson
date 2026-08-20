@@ -1,0 +1,25 @@
+{
+  "notice_id": "b2a14fde343545228daa4ef01279e0d4",
+  "sam_url": "https://sam.gov/opp/b2a14fde343545228daa4ef01279e0d4/view",
+  "title": "FOIA, eDiscovery, and Matter Management Solution(s) - Request for Information (RFI)",
+  "agency": "FEDERAL RETIREMENT THRIFT INVESTMENT BOARD",
+  "office": "OCFO - CONTRACTING OFFICE",
+  "notice_type": "Sources Sought",
+  "set_aside": "No Set aside used",
+  "naics": "513210",
+  "psc": "DA10",
+  "posted": "2026-08-11",
+  "response_due": "2026-08-25",
+  "status": "open",
+  "matched_term": "Microsoft 365",
+  "all_matched_terms": [
+    "Microsoft 365",
+    "Microsoft Purview",
+    "records management"
+  ],
+  "tier": 2,
+  "leverage_rank": 1,
+  "sol_number": "FRTIB-OGC-RFI-2026-001",
+  "source": "sam_daily_extract_notice_store",
+  "retrieved_at": "2026-08-18T15:31:03Z"
+}
