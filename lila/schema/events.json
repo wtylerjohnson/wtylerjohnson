@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lila/schema/events.json",
+  "title": "LILA SWIPE telemetry events",
+  "description": "Four event types, one queue. Every event of every type carries persona, exec_id, deck_id, kind (card kind, or both kinds for duels), hand_id, replay, and ts. Attribution is per interaction row, never per session wrapper. event_id is the idempotency key; the server upserts on it.",
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["type", "event_id", "persona", "exec_id", "deck_id", "hand_id", "replay", "ts"],
+      "properties": {
+        "event_id": { "type": "string", "description": "uuid, client-generated" },
+        "persona": { "type": "string" },
+        "exec_id": { "type": "string", "description": "opaque, from the deck token; never a name or email" },
+        "deck_id": { "type": "string" },
+        "hand_id": { "type": "string", "description": "deck_id:h1 | :h2 | :h3" },
+        "replay": { "type": "boolean", "description": "second full play under the same token; never silently mixed with first-play observations" },
+        "ts": { "type": "string", "description": "ISO 8601, client clock" }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "title": "swipe",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["card_id", "kind", "direction", "swipe_distance", "swipe_ms", "swipe_velocity", "intensity_bin", "reason", "ms_on_card", "position_in_hand", "position_in_deck", "overlap", "retest", "device_class", "streak_at_swipe", "session_minute", "since_bonus_event", "muted"],
+      "properties": {
+        "type": { "const": "swipe" },
+        "card_id": { "type": "string" },
+        "kind": { "type": "string" },
+        "direction": { "enum": ["left", "right"] },
+        "swipe_distance": { "type": "number", "description": "signed, normalized to card width, negative left. RAW, always captured." },
+        "swipe_ms": { "type": "number", "description": "touch start to release" },
+        "swipe_velocity": { "type": "number", "description": "normalized widths per second at release" },
+        "intensity_bin": { "enum": ["lean", "strong"], "description": "display bin only; final relevance mapping lives in training code" },
+        "reason": { "type": ["string", "null"], "description": "chip slug or null; ignore is a valid label" },
+        "ms_on_card": { "type": "number" },
+        "position_in_hand": { "type": "integer" },
+        "position_in_deck": { "type": "integer" },
+        "overlap": { "type": "boolean" },
+        "retest": { "type": "boolean" },
+        "device_class": { "enum": ["phone", "tablet", "desktop"] },
+        "streak_at_swipe": { "type": "integer", "description": "game-state: for the casino-bias monitor check" },
+        "session_minute": { "type": "number", "description": "game-state" },
+        "since_bonus_event": { "type": "integer", "description": "game-state: swipes since last between-hand bonus" },
+        "muted": { "type": "boolean", "description": "game-state" }
+      }
+    },
+    {
+      "title": "ordering",
+      "description": "One per hand, persisted independently the moment it is submitted, so abandonment preserves completed hands.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["ranked_card_ids", "kinds"],
+      "properties": {
+        "type": { "const": "ordering" },
+        "ranked_card_ids": { "type": "array", "items": { "type": "string" } },
+        "kinds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    {
+      "title": "super_like",
+      "description": "The authoritative super-like record; the swipe row does not carry the flag. One per hand, immediate (lever pulled at swipe) or retroactive (number-one card promoted on the hand ordering screen).",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["card_id", "kind", "mode"],
+      "properties": {
+        "type": { "const": "super_like" },
+        "card_id": { "type": "string" },
+        "kind": { "type": "string" },
+        "mode": { "enum": ["immediate", "retroactive"] }
+      }
+    },
+    {
+      "title": "duel",
+      "description": "Direct pairwise preference: two cards side by side, tap the winner. Highest-information gesture per second.",
+      "allOf": [{ "$ref": "#/$defs/base" }],
+      "required": ["card_a", "card_b", "kinds", "winner", "sampling_reason", "response_ms"],
+      "properties": {
+        "type": { "const": "duel" },
+        "card_a": { "type": "string" },
+        "card_b": { "type": "string" },
+        "kinds": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 },
+        "winner": { "type": "string", "description": "card_a or card_b id" },
+        "sampling_reason": { "enum": ["recent_rights", "uncertainty_pair", "disagreement"] },
+        "response_ms": { "type": "number" }
+      }
+    }
+  ]
+}
