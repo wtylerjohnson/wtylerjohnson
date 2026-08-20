@@ -1,0 +1,17 @@
+{
+  "name": "LILA",
+  "short_name": "LILA",
+  "description": "The federal market, one hand at a time.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#072a20",
+  "theme_color": "#0b3d2e",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
