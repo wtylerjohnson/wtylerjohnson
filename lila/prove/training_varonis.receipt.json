@@ -1,0 +1,47 @@
+{
+  "client": "varonis",
+  "client_gate": 300,
+  "fallback_weights": {
+    "access": 0.0953,
+    "account": 0.1431,
+    "clock": 0.2133,
+    "dollars": 0.0961,
+    "fit_tier": 0.2353,
+    "openness": 0.2168
+  },
+  "gate_met": false,
+  "labels": 39,
+  "lambdamart": {
+    "features": [
+      "openness",
+      "clock",
+      "fit_tier",
+      "account",
+      "access",
+      "dollars",
+      "persona_idx",
+      "kind_idx",
+      "tier",
+      "days_remaining",
+      "agency_idx",
+      "vehicle_present",
+      "incumbent_flag",
+      "rival_flag",
+      "dollars_bucket",
+      "sim_taxonomy",
+      "sim_exec_rights",
+      "sim_client_rights"
+    ],
+    "groups": 3,
+    "pair_mechanism": "pair_adjustment:v1",
+    "persona": null,
+    "rows": 39,
+    "scope": "pooled",
+    "trained": true
+  },
+  "model_id": "3f4fac569163",
+  "note": "promotion is monitor-gated; training alone changes nothing in the artifact",
+  "pairs": 52,
+  "quarantined_sessions": [],
+  "usable_swipes": 60
+}

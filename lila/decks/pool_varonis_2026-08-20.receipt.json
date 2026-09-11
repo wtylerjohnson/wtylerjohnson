@@ -1,0 +1,24 @@
+{
+  "artifact": "pool_varonis_2026-08-20.json",
+  "below_target": true,
+  "built_at": "2026-08-20",
+  "client": "varonis",
+  "component_derivation": "v1 (placeholder keys pending FSOS docs reconciliation)",
+  "counts_by_kind": {
+    "closed_rfi": 2,
+    "forecast": 2,
+    "near_miss": 8,
+    "notice": 14,
+    "rfq": 1,
+    "rival_award": 5
+  },
+  "embed_model": "hash32:v1",
+  "fixture": true,
+  "near_miss_by_reason": {
+    "expired": 2,
+    "out_of_category_shared_terms": 3,
+    "vocab_hit_scope_unrelated": 3
+  },
+  "pool_hash": "a98b38f1beeb",
+  "row_count": 32
+}

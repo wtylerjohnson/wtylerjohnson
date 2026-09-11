@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b3d2e">
+<title>LILA</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header id="topbar">
+    <div id="dealer-line">Fresh shoe.</div>
+    <div id="hud">
+      <div id="streak" title="streak"><span id="flame">&#9679;</span><span id="streak-n">0</span></div>
+      <div id="chips-hud">&#11044; <span id="chips-n">0</span></div>
+      <div id="mult" title="table multiplier">x1.0</div>
+      <button id="mute" aria-label="mute">&#128266;</button>
+    </div>
+    <div id="reel" class="hidden"></div>
+  </header>
+
+  <main id="stage">
+    <section id="intro" class="screen">
+      <div id="brand">LILA</div>
+      <div id="seat-picker">
+        <p id="seat-prompt">Choose your seat at the table.</p>
+        <p class="subtle tiny">The game reads the market from where you sit. Pick the chair that is actually yours.</p>
+        <div id="seat-list"></div>
+      </div>
+      <div id="role-confirm" class="hidden">
+        <p id="role-line"></p>
+        <p id="scarcity" class="subtle"></p>
+        <button id="start" class="big-btn">Deal me in</button>
+        <button id="seat-back" class="text-btn">different seat</button>
+      </div>
+      <p class="subtle tiny">Swipe right if it is relevant. Left if it is not. That is the whole game.</p>
+    </section>
+
+    <section id="table" class="screen hidden">
+      <div id="shoe">
+        <svg id="ring" viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="19"/><circle id="ring-fg" cx="22" cy="22" r="19"/></svg>
+        <span id="deck-count"></span>
+      </div>
+      <div id="card-zone">
+        <div id="lever" class="hidden">&#9660; pull to super like &#9660;</div>
+        <article id="card" class="hidden"></article>
+        <div id="chip-row" class="hidden"></div>
+      </div>
+      <div id="hint" class="subtle tiny">drag the card. down for the lever.</div>
+    </section>
+
+    <section id="order-screen" class="screen hidden">
+      <h2>Stack your chips</h2>
+      <p class="subtle">Order these by where you would put a rep first. Top chip plays first.</p>
+      <ul id="order-list"></ul>
+      <button id="order-done" class="big-btn">Lock the stack</button>
+    </section>
+
+    <section id="duel-screen" class="screen hidden">
+      <h2>Heads-up round</h2>
+      <p class="subtle">Tap the one you would move on first.</p>
+      <div id="duel-cards"></div>
+      <button id="duel-skip" class="text-btn">skip</button>
+    </section>
+
+    <section id="payout" class="screen hidden">
+      <h2>Payout</h2>
+      <div id="payout-stats"></div>
+      <canvas id="share-tile" width="600" height="340"></canvas>
+      <div id="payout-actions">
+        <button id="share" class="big-btn">Share the table</button>
+        <button id="next-persona" class="big-btn alt hidden">Deal me another persona</button>
+      </div>
+      <p id="sync-note" class="subtle tiny"></p>
+    </section>
+  </main>
+
+  <div id="confetti-layer"></div>
+  <div id="toast" class="hidden"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

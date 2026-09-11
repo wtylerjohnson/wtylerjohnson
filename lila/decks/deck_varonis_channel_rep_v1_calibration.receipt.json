@@ -1,0 +1,25 @@
+{
+  "artifact": "deck_varonis_channel_rep_v1_calibration.json",
+  "card_set_seed": "8b8ada5cbfed00faa417f4fa0b5348ea5b56521f7efff52cf16678a80ebbe75e",
+  "counts_by_kind": {
+    "closed_rfi": 1,
+    "forecast": 1,
+    "near_miss": 7,
+    "notice": 8,
+    "rival_award": 3
+  },
+  "deck_id": "9b3685c5372a",
+  "fixture": true,
+  "hands": [
+    6,
+    6,
+    8
+  ],
+  "n": 20,
+  "overlap_count": 4,
+  "pool_file": "pool_varonis_2026-08-20.json",
+  "pool_hash": "a98b38f1beeb",
+  "retest_count": 0,
+  "salt_count": 7,
+  "variant": "calibration"
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lila/schema/card.json",
+  "title": "LILA SWIPE card",
+  "description": "Frozen contract between the deck presser and the app. Source keys from the store are preserved under raw_inputs, never renamed. Derivations are tested against lila_fixtures/varonis_candidate_row.json. our_score and our_components ride in the data and are NEVER rendered.",
+  "type": "object",
+  "required": [
+    "id", "client", "kind", "seal_key", "agency", "office", "title", "basis",
+    "clock", "dollars", "incumbent", "contact_present", "source_url",
+    "our_score", "our_components", "raw_inputs", "salt", "overlap", "retest",
+    "retrieved_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "notice_id or award/forecast record id; doubles as receipt record_id"
+    },
+    "client": { "type": "string", "description": "client slug" },
+    "kind": {
+      "enum": ["notice", "rival_award", "forecast", "closed_rfi", "rfq", "near_miss"],
+      "description": "derived from notice_type and status; near_miss only for salt"
+    },
+    "seal_key": { "type": "string", "description": "agency seal asset key, preloaded in the app bundle" },
+    "agency": { "type": "string" },
+    "office": { "type": "string" },
+    "title": { "type": "string" },
+    "basis": {
+      "type": "string",
+      "maxLength": 160,
+      "description": "one line in the CO's words: the sentence containing the top matched term, extracted from notice text in notices.db"
+    },
+    "clock": {
+      "type": "object",
+      "required": ["date", "label"],
+      "properties": {
+        "date": { "type": ["string", "null"], "description": "YYYY-MM-DD" },
+        "label": { "enum": ["responses due", "PoP ends", "forecast qtr", "closed"] },
+        "days_remaining": { "type": ["integer", "null"], "description": "recomputed at press from pool build date, never trusted from the store" }
+      }
+    },
+    "dollars": { "type": ["number", "null"], "description": "published dollar figures only" },
+    "incumbent": { "type": ["string", "null"] },
+    "contact_present": { "type": "boolean", "description": "POC exists on record; no PII on the card, ever" },
+    "source_url": { "type": "string", "description": "sam_url or equivalent public receipt URL" },
+    "our_score": { "type": "number", "description": "HIDDEN. The hypothesis. Never rendered." },
+    "our_components": {
+      "type": "object",
+      "required": ["openness", "clock", "fit_tier", "account", "access", "dollars"],
+      "description": "HIDDEN. Six terms derived from raw ingredients, each normalized to [0,1]. Keys are placeholders pending FSOS docs reconciliation.",
+      "properties": {
+        "openness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "clock": { "type": "number", "minimum": 0, "maximum": 1 },
+        "fit_tier": { "type": "number", "minimum": 0, "maximum": 1 },
+        "account": { "type": "number", "minimum": 0, "maximum": 1 },
+        "access": { "type": "number", "minimum": 0, "maximum": 1 },
+        "dollars": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "raw_inputs": {
+      "type": "object",
+      "description": "source values used in derivation, preserved under their ORIGINAL key names (status, tier, leverage_rank, dates, set_aside, vehicle, dollar fields). Do not rename."
+    },
+    "salt": { "type": "boolean", "description": "true only for near_miss; authentic store rejects, never synthetic" },
+    "near_miss_reason": {
+      "enum": ["vocab_hit_scope_unrelated", "expired", "out_of_category_shared_terms", null]
+    },
+    "selection_reason": { "type": ["string", "null"], "description": "from the filter rerun" },
+    "rejection_reason": { "type": ["string", "null"], "description": "from the filter rerun; near-misses carry one" },
+    "overlap": { "type": "boolean", "description": "in the cross-persona overlap set; one budget with retest" },
+    "retest": { "type": "boolean", "description": "returned on model-crowd disagreement; rides inside the overlap budget" },
+    "retrieved_at": { "type": "string", "description": "ISO 8601, copied from source row" },
+    "sentence_vec": {
+      "type": ["array", "null"],
+      "items": { "type": "number" },
+      "description": "full matched-sentence embedding, computed once at pool build, stored always, consumed as scalar reductions until EMBEDDING_VECTOR_GATE"
+    },
+    "fixture": { "type": "boolean", "description": "development fixture row; a deck containing any fixture row must never be minted into a real executive link" }
+  }
+}
